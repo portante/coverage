@@ -106,6 +106,7 @@ class CoverageConfig(object):
 
         # Defaults for [run]
         self.branch = False
+        self.concurrency = 'threads'
         self.cover_pylib = False
         self.data_file = ".coverage"
         self.parallel = False
@@ -176,6 +177,7 @@ class CoverageConfig(object):
     CONFIG_FILE_OPTIONS = [
         # [run]
         ('branch', 'run:branch', 'boolean'),
+        ('concurrency', 'run:concurrency', 'list'),
         ('cover_pylib', 'run:cover_pylib', 'boolean'),
         ('data_file', 'run:data_file'),
         ('include', 'run:include', 'list'),

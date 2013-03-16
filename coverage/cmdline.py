@@ -19,6 +19,10 @@ class Opts(object):
         '', '--branch', action='store_true',
         help="Measure branch coverage in addition to statement coverage."
         )
+    concurrency = optparse.make_option(
+        '', '--concurrency', action='store',
+        help="One of 'threads' (default), 'gevent', 'eventlet', ... ."
+        )
     directory = optparse.make_option(
         '-d', '--directory', action='store', metavar="DIR",
         help="Write the output files to DIR."
@@ -117,6 +121,7 @@ class CoverageOptionParser(optparse.OptionParser, object):
         self.set_defaults(
             actions=[],
             branch=None,
+            concurrency='threads',
             directory=None,
             fail_under=None,
             help=None,
@@ -310,6 +315,7 @@ CMDS = {
         [
             Opts.append,
             Opts.branch,
+            Opts.concurrency,
             Opts.pylib,
             Opts.parallel_mode,
             Opts.module,
@@ -411,6 +417,7 @@ class CoverageScript(object):
             cover_pylib = options.pylib,
             timid = options.timid,
             branch = options.branch,
+            concurrency = options.concurrency,
             config_file = options.rcfile,
             source = source,
             omit = omit,

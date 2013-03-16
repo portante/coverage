@@ -1,6 +1,6 @@
 """Raw data collector for Coverage."""
 
-import os, sys, threading
+import os, sys, threading, collections
 
 try:
     # Use the C extension code when we can, for speed.
@@ -47,10 +47,11 @@ class PyTracer(object):
         self.warn = None
         self.cur_file_data = None
         self.last_line = 0
-        self.data_stack = []
+        self.data_stack = collections.defaultdict(list)
         self.last_exc_back = None
         self.last_exc_firstlineno = 0
         self.arcs = False
+        self.idxfunc = None
 
     def _trace(self, frame, event, arg_unused):
         """The trace function passed to sys.settrace."""
@@ -61,24 +62,27 @@ class PyTracer(object):
 
         if self.last_exc_back:
             if frame == self.last_exc_back:
-                # Someone forgot a return event.
+                # Someone forgot a return event, or our index changed,
+                # meaning, we perhaps switched greenlets.
                 if self.arcs and self.cur_file_data:
                     pair = (self.last_line, -self.last_exc_firstlineno)
                     self.cur_file_data[pair] = None
-                self.cur_file_data, self.last_line = self.data_stack.pop()
+                data_stack = self.data_stack[hash(self.idxfunc())]
+                self.cur_file_data, self.last_line = data_stack.pop()
             self.last_exc_back = None
 
         if event == 'call':
             # Entering a new function context.  Decide if we should trace
             # in this file.
-            self.data_stack.append((self.cur_file_data, self.last_line))
+            data_stack = self.data_stack[hash(self.idxfunc())]
+            data_stack.append((self.cur_file_data, self.last_line))
             filename = frame.f_code.co_filename
             tracename = self.should_trace_cache.get(filename)
             if tracename is None:
                 tracename = self.should_trace(filename, frame)
                 self.should_trace_cache[filename] = tracename
             #print("called, stack is %d deep, tracename is %r" % (
-            #               len(self.data_stack), tracename))
+            #               len(data_stack), tracename))
             if tracename:
                 if tracename not in self.data:
                     self.data[tracename] = {}
@@ -103,8 +107,9 @@ class PyTracer(object):
                 first = frame.f_code.co_firstlineno
                 self.cur_file_data[(self.last_line, -first)] = None
             # Leaving this function, pop the filename stack.
-            self.cur_file_data, self.last_line = self.data_stack.pop()
-            #print("returned, stack is %d deep" % (len(self.data_stack)))
+            data_stack = self.data_stack[hash(self.idxfunc())]
+            self.cur_file_data, self.last_line = data_stack.pop()
+            #print("returned, stack is %d deep" % (len(data_stack)))
         elif event == 'exception':
             #print("exc", self.last_line, frame.f_lineno)
             self.last_exc_back = frame.f_back
@@ -157,7 +162,7 @@ class Collector(object):
     # the top, and resumed when they become the top again.
     _collectors = []
 
-    def __init__(self, should_trace, timid, branch, warn):
+    def __init__(self, should_trace, timid, branch, warn, concurrency):
         """Create a collector.
 
         `should_trace` is a function, taking a filename, and returning a
@@ -173,6 +178,11 @@ class Collector(object):
         collecting data on which statements followed each other (arcs).  Use
         `get_arc_data` to get the arc data.
 
+        'concurrency' is one of the following keywords, 'threads', 'gevent',
+        'eventlet', ... or None. A function is provided based on these methods
+        that returns a hashable to track the data properly under the given
+        concurrency environment.
+
         `warn` is a warning function, taking a single string message argument,
         to be used if a warning needs to be issued.
 
@@ -180,6 +190,15 @@ class Collector(object):
         self.should_trace = should_trace
         self.warn = warn
         self.branch = branch
+        assert concurrency in (None, 'threads', 'gevent', 'eventlet')
+        if 'gevent' == concurrency:
+            import gevent.getcurrent as idxfunc
+        elif 'eventlet' == concurrency:
+            import eventlet.greenthread.getcurrent as idxfunc
+        else:
+            def idxfunc():
+                return 0
+        self.idxfunc = idxfunc
         self.reset()
 
         if timid:
@@ -218,6 +237,7 @@ class Collector(object):
         tracer.arcs = self.branch
         tracer.should_trace = self.should_trace
         tracer.should_trace_cache = self.should_trace_cache
+        tracer.idxfunc = self.idxfunc
         tracer.warn = self.warn
         fn = tracer.start()
         self.tracers.append(tracer)

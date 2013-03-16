@@ -33,7 +33,7 @@ class coverage(object):
     """
     def __init__(self, data_file=None, data_suffix=None, cover_pylib=None,
                 auto_data=False, timid=None, branch=None, config_file=True,
-                source=None, omit=None, include=None):
+                source=None, omit=None, include=None, concurrency=None):
         """
         `data_file` is the base name of the data file to use, defaulting to
         ".coverage".  `data_suffix` is appended (with a dot) to `data_file` to
@@ -54,6 +54,10 @@ class coverage(object):
 
         If `branch` is true, then branch coverage will be measured in addition
         to the usual statement coverage.
+
+        If `coverage` is not None, then the value sets the method to handle
+        the concurrency environment. Currently we accept 'threads' (the
+        default), 'eventlet', and 'gevent'.
 
         `config_file` determines what config file to read.  If it is a string,
         it is the name of the config file to read.  If it is True, then a
@@ -100,7 +104,7 @@ class coverage(object):
         self.config.from_args(
             data_file=data_file, cover_pylib=cover_pylib, timid=timid,
             branch=branch, parallel=bool_or_none(data_suffix),
-            source=source, omit=omit, include=include
+            source=source, omit=omit, include=include, concurrency=concurrency
             )
 
         self.auto_data = auto_data
@@ -126,7 +130,8 @@ class coverage(object):
 
         self.collector = Collector(
             self._should_trace, timid=self.config.timid,
-            branch=self.config.branch, warn=self._warn
+            branch=self.config.branch, warn=self._warn,
+            concurrency=self.config.concurrency
             )
 
         # Suffixes are a bit tricky.  We want to use the data suffix only when
