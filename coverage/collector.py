@@ -190,11 +190,11 @@ class Collector(object):
         self.should_trace = should_trace
         self.warn = warn
         self.branch = branch
-        assert concurrency in (None, 'threads', 'gevent', 'eventlet')
+        assert concurrency in (None, 'threads', 'gevent', 'eventlet', 'greenlets')
         if 'gevent' == concurrency:
-            import gevent.getcurrent as idxfunc
-        elif 'eventlet' == concurrency:
-            import eventlet.greenthread.getcurrent as idxfunc
+            from gevent import getcurrent as idxfunc
+        elif concurrency in ('eventlet', 'greenlets'):
+            from eventlet.greenthread import getcurrent as idxfunc
         else:
             def idxfunc():
                 return 0
