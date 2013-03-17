@@ -237,7 +237,8 @@ class Collector(object):
         tracer.arcs = self.branch
         tracer.should_trace = self.should_trace
         tracer.should_trace_cache = self.should_trace_cache
-        tracer.idxfunc = self.idxfunc
+        if self._trace_class == PyTracer:
+            tracer.idxfunc = self.idxfunc
         tracer.warn = self.warn
         fn = tracer.start()
         self.tracers.append(tracer)
